@@ -1,0 +1,33 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>iChef</title>
+  <link rel="stylesheet" href="styles/main.css" />
+</head>
+<body>
+  <header class="app-header">
+    <div class="brand">
+      <span class="brand-mark">iChef</span>
+      <span class="brand-sub">cook with what you have</span>
+    </div>
+    <nav class="tabs" role="tablist">
+      <button class="tab" data-tab="pantry" role="tab" aria-selected="true">Pantry</button>
+      <button class="tab" data-tab="recipes" role="tab" aria-selected="false">Find Recipes</button>
+    </nav>
+  </header>
+
+  <div id="config-banner" class="config-banner hidden" role="status"></div>
+
+  <main>
+    <section id="page-pantry" class="page" role="tabpanel"></section>
+    <section id="page-recipes" class="page hidden" role="tabpanel"></section>
+  </main>
+
+  <div id="modal-root"></div>
+  <div id="toast-root" aria-live="polite"></div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>

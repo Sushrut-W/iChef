@@ -1,0 +1,10 @@
+{
+  "name": "ichef",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "Pantry-aware recipe finder. Vanilla JS frontend + Vercel serverless functions.",
+  "engines": {
+    "node": ">=18"
+  }
+}
