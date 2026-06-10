@@ -53,7 +53,7 @@ function renderConfigBanner() {
   }
   banner.classList.remove('hidden');
   banner.innerHTML =
-    '<span>Server isn\'t configured with a Spoonacular API key — pantry works, recipe search is disabled.</span>' +
+    '<span>No Spoonacular key configured — recipe search uses the built-in catalog (~650 recipes). Add a key for the full web search.</span>' +
     ' <a href="SETUP.md" target="_blank">How to set it up →</a>';
 }
 

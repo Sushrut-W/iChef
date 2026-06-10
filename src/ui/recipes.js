@@ -5,7 +5,6 @@ import * as pantry from '../state/pantry.js';
 import * as favorites from '../state/favorites.js';
 import * as taste from '../state/taste.js';
 import * as settings from '../state/settings.js';
-import { isBackendConfigured } from '../state/backend.js';
 import { rankRecipes } from '../lib/rank.js';
 import { el, clear, toast } from './common.js';
 import { openRecipeDetail } from './recipeDetail.js';
@@ -34,7 +33,8 @@ const MEAL_TYPES = [
 const MEAL_LABELS = new Map(MEAL_TYPES);
 
 let subTab = 'discover';
-let lastResults = []; // raw server results, re-ranked locally on vote changes
+let lastResults = []; // raw merged results, re-ranked locally on vote changes
+let lastNotice = null; // why web results are absent, if they are
 
 export function render(container) {
   clear(container);
@@ -47,11 +47,6 @@ export function render(container) {
       ]),
     ])
   );
-
-  if (!isBackendConfigured() && subTab === 'discover' && !favorites.getAll().length) {
-    container.appendChild(renderConfigureGate());
-    return;
-  }
 
   const subtabs = el('div', { class: 'subtabs' });
   for (const [key, label] of [['discover', 'Discover'], ['favorites', `Favorites`]]) {
@@ -69,11 +64,6 @@ export function render(container) {
 
   if (subTab === 'favorites') {
     renderFavoritesView(container);
-    return;
-  }
-
-  if (!isBackendConfigured()) {
-    container.appendChild(renderConfigureGate());
     return;
   }
 
@@ -231,7 +221,7 @@ async function loadAndRender(container) {
 
   const s = settings.get();
   try {
-    lastResults = await findRecipes({
+    const { recipes, spoonacularError } = await findRecipes({
       mealType: s.mealType,
       mode: s.mode,
       cuisine: s.cuisine,
@@ -239,13 +229,17 @@ async function loadAndRender(container) {
       intolerances: s.intolerances,
       mustUse: s.mustUse,
     });
+    lastResults = recipes;
+    lastNotice = !spoonacularError
+      ? null
+      : spoonacularError.status === 429
+        ? 'Spoonacular\'s daily free quota is used up (resets midnight UTC) — showing built-in catalog results, which are always free.'
+        : spoonacularError instanceof BackendError && spoonacularError.isNotConfigured
+          ? 'Showing the built-in catalog only — add a Spoonacular key (see SETUP.md) for thousands more recipes.'
+          : 'Web recipe search unavailable right now (quota or network) — showing built-in catalog results.';
     renderResults(container);
   } catch (err) {
     clear(container);
-    if (err instanceof BackendError && err.isNotConfigured) {
-      container.appendChild(renderConfigureGate());
-      return;
-    }
     console.error(err);
     container.appendChild(
       el('div', { class: 'error' }, [`Couldn't load recipes: ${err.message || err}`])
@@ -257,6 +251,10 @@ function renderResults(container) {
   clear(container);
   const s = settings.get();
   const { visible, hidden } = rankRecipes(lastResults, s.mode);
+
+  if (lastNotice) {
+    container.appendChild(el('p', { class: 'source-notice' }, [lastNotice]));
+  }
 
   if (!visible.length) {
     const isStrict = s.mode === 'strict';
@@ -366,6 +364,7 @@ function renderCard(recipe, resultsContainer) {
 
   const card = el('article', {
     class: 'recipe-card',
+    dataset: { source: recipe.source || 'web' },
     onclick: () => openRecipeDetail(recipe.id, recipe),
   }, [
     el('div', { class: 'img-wrap' }, [
@@ -494,13 +493,3 @@ function renderFavoriteCard(fav, rerender) {
   ]);
 }
 
-function renderConfigureGate() {
-  return el('div', { class: 'empty-state' }, [
-    el('h3', {}, ['Backend not configured']),
-    el('p', {}, [
-      'The Spoonacular API key needs to be set on the server. See ',
-      el('a', { href: 'SETUP.md', target: '_blank' }, ['SETUP.md']),
-      ' for the steps (it takes about a minute).',
-    ]),
-  ]);
-}

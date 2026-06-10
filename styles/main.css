@@ -679,6 +679,16 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:f
   font-size: 13px;
   color: var(--text-muted);
 }
+
+.source-notice {
+  margin: 0 0 14px;
+  padding: 9px 14px;
+  border-radius: var(--radius);
+  background: var(--info-bg);
+  border: 1px solid var(--info-border);
+  color: var(--info-text);
+  font-size: 13px;
+}
 .hidden-note button { font-size: 13px; }
 
 /* ---------- Loading + error ---------- */

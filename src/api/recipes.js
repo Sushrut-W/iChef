@@ -1,11 +1,20 @@
-// Higher-level recipe service. Thin wrapper over the backend client that
-// also tags recipe ingredients with whether they're in the pantry.
+// Higher-level recipe service: merges the built-in local catalog (free,
+// offline, no quota) with Spoonacular results (when the server has a key),
+// and tags recipe ingredients with whether they're in the pantry.
 
 import { fetchRecipes, fetchRecipeDetail, BackendError } from './backend.js';
+import { searchCatalog, getCatalogDetail, isCatalogId } from './catalog.js';
+import { isBackendConfigured } from '../state/backend.js';
 import { getHaveItems, getAll as getAllPantry } from '../state/pantry.js';
 
 export { BackendError };
 
+function titleKey(title) {
+  return String(title).toLowerCase().replace(/[^a-z0-9]+/g, ' ').trim();
+}
+
+// Returns { recipes, spoonacularError } — spoonacularError is set when the
+// web search failed (quota, network, no key) but catalog results still stand.
 export async function findRecipes({
   mealType = 'any',
   mode = 'flexible',
@@ -15,10 +24,44 @@ export async function findRecipes({
   mustUse = '',
 } = {}) {
   const ingredients = getHaveItems().map((i) => i.name);
-  return fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances, mustUse });
+
+  // The catalog has no allergen metadata, so when intolerances are active
+  // only Spoonacular results (which filter server-side) are trustworthy.
+  const catalogPromise = intolerances.length
+    ? Promise.resolve([])
+    : searchCatalog({ mealType, mode, cuisine, diet, mustUse });
+
+  const webPromise = isBackendConfigured()
+    ? fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances, mustUse })
+    : Promise.reject(new BackendError('No Spoonacular key configured', 503));
+
+  const [catalogResult, webResult] = await Promise.allSettled([catalogPromise, webPromise]);
+
+  const local = catalogResult.status === 'fulfilled' ? catalogResult.value : [];
+  const web = webResult.status === 'fulfilled' ? webResult.value : [];
+  const spoonacularError = webResult.status === 'rejected' ? webResult.reason : null;
+
+  // Dedupe by title; prefer the catalog copy (its detail view costs no quota).
+  const seen = new Set(local.map((r) => titleKey(r.title)));
+  const merged = [...local];
+  for (const recipe of web) {
+    if (!seen.has(titleKey(recipe.title))) {
+      seen.add(titleKey(recipe.title));
+      merged.push({ ...recipe, source: 'web' });
+    }
+  }
+
+  // If BOTH sources failed (catalog unreachable too), surface the web error.
+  if (!merged.length && spoonacularError && catalogResult.status === 'rejected') {
+    throw spoonacularError;
+  }
+
+  return { recipes: merged, spoonacularError };
 }
 
 export async function getRecipeDetail(id) {
+  if (isCatalogId(id)) return getCatalogDetail(id);
+
   const info = await fetchRecipeDetail(id);
   const pantryNames = new Set(getAllPantry().filter((i) => i.hasIt).map((i) => i.name.toLowerCase()));
 

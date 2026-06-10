@@ -18,6 +18,8 @@ End-to-end setup with **Vercel** (hosting + serverless backend) and **Spoonacula
 
   Then verify: `vercel --version`.
 
+> **Note:** recipe search works even with no API key at all — iChef ships with a built-in ~650-recipe catalog (TheMealDB) that's searched locally with zero quota. The Spoonacular key adds its 365k-recipe web search on top, merged into the same results.
+
 ## 2. Get a Spoonacular API key
 
 1. Sign up at <https://spoonacular.com/food-api> → "Start Now".

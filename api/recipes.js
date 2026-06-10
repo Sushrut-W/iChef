@@ -78,6 +78,10 @@ export default async function handler(req, res) {
   }
 
   try {
+    // mustUse is filtered AFTER the search, so it only sees whatever window
+    // Spoonacular returned. Widen the window when it's active, otherwise a
+    // broad query (e.g. mealType=any) can paradoxically yield fewer matches
+    // than a narrow one. Costs ~2 extra quota points per must-use search.
     const raw = await complexSearch({
       apiKey,
       type: MEAL_TYPE_MAP[mealType],
@@ -85,6 +89,7 @@ export default async function handler(req, res) {
       cuisine,
       diet,
       intolerances,
+      number: mustUse ? 64 : 24,
     });
 
     const matching = mustUse
@@ -103,15 +108,20 @@ export default async function handler(req, res) {
         ? normalized.filter((r) => r.missedIngredientCount === 0)
         : normalized.sort((a, b) => a.missedIngredientCount - b.missedIngredientCount);
 
-    res.setHeader('Cache-Control', 's-maxage=300, stale-while-revalidate=60');
+    res.setHeader('Cache-Control', 's-maxage=3600, stale-while-revalidate=600');
     res.status(200).json({ recipes: result });
   } catch (err) {
     console.error('recipes handler error', err);
+    if (String(err.message || '').includes(' 402')) {
+      // Spoonacular daily points exhausted — tell the client distinctly so the
+      // UI can explain (the built-in catalog keeps working regardless).
+      return res.status(429).json({ error: 'Spoonacular daily quota reached — resets at midnight UTC' });
+    }
     res.status(500).json({ error: err.message || 'Unknown error' });
   }
 }
 
-async function complexSearch({ apiKey, type, ingredients, cuisine, diet, intolerances }) {
+async function complexSearch({ apiKey, type, ingredients, cuisine, diet, intolerances, number = 24 }) {
   const url = new URL('https://api.spoonacular.com/recipes/complexSearch');
   url.searchParams.set('apiKey', apiKey);
   if (type) url.searchParams.set('type', type);
@@ -123,7 +133,7 @@ async function complexSearch({ apiKey, type, ingredients, cuisine, diet, intoler
   url.searchParams.set('addRecipeInformation', 'true');
   url.searchParams.set('instructionsRequired', 'true');
   url.searchParams.set('sort', 'min-missing-ingredients');
-  url.searchParams.set('number', '24');
+  url.searchParams.set('number', String(number));
 
   const r = await fetch(url);
   if (!r.ok) {

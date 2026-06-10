@@ -22,7 +22,7 @@ A personal cooking web app. Maintain a pantry of what you have, find recipes you
 - **Frontend:** vanilla HTML / CSS / ES modules, no build step.
 - **Backend:** Vercel serverless functions in `api/` (Node.js, no dependencies — uses built-in `fetch`).
 - **Storage:** browser `localStorage` by default; optional Firebase Firestore for cross-device sync (`SETUP.md` §7).
-- **Recipe data:** Spoonacular API, called server-side so the key stays out of the browser. Responses are CDN- and session-cached to respect the free-tier quota.
+- **Recipe data:** a built-in ~650-recipe catalog (`data/catalog.json`, from [TheMealDB](https://www.themealdb.com), searched entirely in the browser — free, offline, no quota) merged with the Spoonacular API (called server-side so the key stays out of the browser; CDN + 24h client caching to respect the free-tier quota). Rebuild the catalog any time with `node scripts/build-catalog.mjs`.
 
 ## Quick start
 

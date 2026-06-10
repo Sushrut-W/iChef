@@ -2,8 +2,7 @@
 
 import * as pantry from '../state/pantry.js';
 import * as settings from '../state/settings.js';
-import { isBackendConfigured } from '../state/backend.js';
-import { fetchAutocomplete, BackendError } from '../api/backend.js';
+import { suggestIngredients } from '../data/ingredients.js';
 import { el, clear, toast, debounce, openModal, modalHeader } from './common.js';
 
 export function render(container) {
@@ -107,27 +106,16 @@ function renderAddForm() {
 
   form.append(input, categorySelect, submit, acList);
 
-  // Autocomplete — works only when the backend is configured. Gracefully
-  // degrades to plain text input if the backend returns 503.
-  const runAutocomplete = debounce(async (q) => {
-    if (!isBackendConfigured()) {
+  // Autocomplete from the built-in ingredient list — local, instant, and free
+  // (the old Spoonacular autocomplete cost ~1 quota point per keystroke pause).
+  const runAutocomplete = debounce((q) => {
+    const results = suggestIngredients(q).map((name) => ({ name }));
+    renderSuggestions(acList, results, (name) => {
+      input.value = name;
       acList.classList.add('hidden');
-      return;
-    }
-    try {
-      const results = await fetchAutocomplete(q);
-      renderSuggestions(acList, results, (name) => {
-        input.value = name;
-        acList.classList.add('hidden');
-        input.focus();
-      });
-    } catch (err) {
-      if (!(err instanceof BackendError && err.isNotConfigured)) {
-        console.warn('autocomplete failed', err);
-      }
-      acList.classList.add('hidden');
-    }
-  }, 220);
+      input.focus();
+    });
+  }, 120);
 
   input.addEventListener('input', () => {
     const q = input.value.trim();
