@@ -6,9 +6,15 @@ import { getHaveItems, getAll as getAllPantry } from '../state/pantry.js';
 
 export { BackendError };
 
-export async function findRecipes({ mealType = 'any', mode = 'flexible' } = {}) {
+export async function findRecipes({
+  mealType = 'any',
+  mode = 'flexible',
+  cuisine = '',
+  diet = '',
+  intolerances = [],
+} = {}) {
   const ingredients = getHaveItems().map((i) => i.name);
-  return fetchRecipes({ mealType, mode, ingredients });
+  return fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances });
 }
 
 export async function getRecipeDetail(id) {
@@ -36,6 +42,8 @@ export async function getRecipeDetail(id) {
     summary: info.summary || '',
     readyInMinutes: info.readyInMinutes || null,
     servings: info.servings || null,
+    cuisines: info.cuisines || [],
+    dishTypes: info.dishTypes || [],
     ingredients,
     steps: extractSteps(info),
   };

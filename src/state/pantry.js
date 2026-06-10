@@ -1,8 +1,8 @@
-// Pantry state — a thin layer over the storage adapter that adds:
-//  - in-memory caching
-//  - change-event subscription so UI can re-render on updates
+// Pantry state — caches the 'pantry' collection and adds:
+//  - change-event subscription (driven by storage.watch, so remote sync
+//    updates flow through the same path as local edits)
 //  - category inference for unknown ingredients
-//  - helpers to query "do I have ingredient X?"
+//  - name normalization + dedupe (adapters stay dumb)
 
 import * as storage from '../storage/index.js';
 
@@ -46,6 +46,10 @@ export function guessCategory(name) {
   return 'Other';
 }
 
+export function normalizeName(name) {
+  return String(name || '').trim().toLowerCase();
+}
+
 function emit() {
   for (const fn of listeners) {
     try { fn(cache); } catch (e) { console.error('pantry listener error', e); }
@@ -59,9 +63,14 @@ export function subscribe(fn) {
 }
 
 export async function load() {
-  cache = await storage.getPantry();
+  cache = await storage.listItems('pantry');
   loaded = true;
   emit();
+  // Keep the cache in sync with all future changes — local or remote.
+  storage.watch('pantry', (items) => {
+    cache = items;
+    emit();
+  });
   return cache;
 }
 
@@ -69,9 +78,14 @@ export function getAll() {
   return cache;
 }
 
+export function findByName(name) {
+  const lower = normalizeName(name);
+  return cache.find((i) => normalizeName(i.name) === lower) || null;
+}
+
 export function hasIngredient(name) {
-  const lower = String(name || '').trim().toLowerCase();
-  return cache.some((i) => i.name.toLowerCase() === lower && i.hasIt);
+  const item = findByName(name);
+  return Boolean(item && item.hasIt);
 }
 
 export function getHaveItems() {
@@ -79,36 +93,72 @@ export function getHaveItems() {
 }
 
 export async function add(name, category) {
-  const finalCategory = category || guessCategory(name);
-  const added = await storage.addIngredient({ name, category: finalCategory });
-  cache = await storage.getPantry();
-  emit();
-  return added;
+  const cleanName = normalizeName(name);
+  if (!cleanName) throw new Error('Ingredient name required');
+  const existing = findByName(cleanName);
+  if (existing) {
+    // Re-adding an existing ingredient marks it as Have again.
+    await storage.patchItem('pantry', existing.id, {
+      hasIt: true,
+      ...(category ? { category } : {}),
+    });
+    return existing;
+  }
+  return storage.upsertItem('pantry', {
+    name: cleanName,
+    category: category || guessCategory(cleanName),
+    hasIt: true,
+    addedAt: new Date().toISOString(),
+  });
 }
 
 export async function setStatus(id, hasIt) {
-  await storage.setIngredientStatus(id, hasIt);
-  const item = cache.find((i) => i.id === id);
-  if (item) item.hasIt = Boolean(hasIt);
-  emit();
+  await storage.patchItem('pantry', id, { hasIt: Boolean(hasIt) });
 }
 
 export async function remove(id) {
-  await storage.removeIngredient(id);
-  cache = cache.filter((i) => i.id !== id);
-  emit();
+  await storage.removeItem('pantry', id);
+}
+
+// Bulk add from {name, category} entries (grocery run, shopping-list import).
+// Dedupes against the current pantry by normalized name; existing items are
+// marked Have. Single replaceAll write -> single re-render / sync batch.
+export async function bulkAddEntries(entries) {
+  const next = cache.map((i) => ({ ...i }));
+  const byName = new Map(next.map((i) => [normalizeName(i.name), i]));
+  const added = [];
+  for (const entry of entries) {
+    const cleanName = normalizeName(entry.name);
+    if (!cleanName) continue;
+    const existing = byName.get(cleanName);
+    if (existing) {
+      existing.hasIt = true;
+      if (entry.category) existing.category = entry.category;
+      added.push(existing);
+    } else {
+      const item = {
+        name: cleanName,
+        category: entry.category || guessCategory(cleanName),
+        hasIt: true,
+        addedAt: new Date().toISOString(),
+      };
+      next.push(item);
+      byName.set(cleanName, item);
+      added.push(item);
+    }
+  }
+  if (!added.length) return [];
+  await storage.replaceAll('pantry', next);
+  return added;
 }
 
 export async function bulkAddNames(names) {
-  const entries = names
-    .map((n) => String(n).trim())
-    .filter(Boolean)
-    .map((name) => ({ name, category: guessCategory(name) }));
-  if (!entries.length) return [];
-  const added = await storage.bulkAdd(entries);
-  cache = await storage.getPantry();
-  emit();
-  return added;
+  return bulkAddEntries(
+    names
+      .map((n) => normalizeName(n))
+      .filter(Boolean)
+      .map((name) => ({ name, category: guessCategory(name) }))
+  );
 }
 
 export function groupByCategory(items) {

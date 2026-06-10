@@ -4,6 +4,27 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>iChef</title>
+  <script>
+    // Set the theme before first paint to avoid a flash of the wrong theme.
+    (function () {
+      try {
+        var t = localStorage.getItem('ichef.theme');
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+        }
+        document.documentElement.dataset.theme = t;
+      } catch (e) {
+        document.documentElement.dataset.theme = 'light';
+      }
+    })();
+  </script>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8D%B3%3C/text%3E%3C/svg%3E" />
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link
+    href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700&display=swap"
+    rel="stylesheet"
+  />
   <link rel="stylesheet" href="styles/main.css" />
 </head>
 <body>
@@ -15,7 +36,10 @@
     <nav class="tabs" role="tablist">
       <button class="tab" data-tab="pantry" role="tab" aria-selected="true">Pantry</button>
       <button class="tab" data-tab="recipes" role="tab" aria-selected="false">Find Recipes</button>
+      <button class="tab" data-tab="shopping" role="tab" aria-selected="false">Shopping<span class="tab-badge hidden" id="shopping-badge"></span></button>
+      <button class="tab" data-tab="history" role="tab" aria-selected="false">History</button>
     </nav>
+    <div class="header-actions" id="header-actions"></div>
   </header>
 
   <div id="config-banner" class="config-banner hidden" role="status"></div>
@@ -23,6 +47,8 @@
   <main>
     <section id="page-pantry" class="page" role="tabpanel"></section>
     <section id="page-recipes" class="page hidden" role="tabpanel"></section>
+    <section id="page-shopping" class="page hidden" role="tabpanel"></section>
+    <section id="page-history" class="page hidden" role="tabpanel"></section>
   </main>
 
   <div id="modal-root"></div>

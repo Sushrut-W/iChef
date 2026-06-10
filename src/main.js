@@ -1,16 +1,29 @@
-// App bootstrap: probe backend, render pantry, set up tab switching.
+// App bootstrap: init storage, probe backend, load state, wire navigation.
 
+import * as storage from './storage/index.js';
 import * as pantry from './state/pantry.js';
+import * as shopping from './state/shopping.js';
+import * as favorites from './state/favorites.js';
+import * as history from './state/history.js';
+import * as taste from './state/taste.js';
+import * as settings from './state/settings.js';
 import { checkBackend, isBackendConfigured, subscribe as subscribeBackend } from './state/backend.js';
 import { render as renderPantry } from './ui/pantry.js';
 import { render as renderRecipes } from './ui/recipes.js';
+import { render as renderShopping } from './ui/shopping.js';
+import { render as renderHistory } from './ui/history.js';
+import { mountThemeToggle } from './ui/theme.js';
+import { mountSyncButton } from './ui/sync.js';
 
 const PAGES = {
   pantry: { id: 'page-pantry', render: renderPantry, rendered: false },
   recipes: { id: 'page-recipes', render: renderRecipes, rendered: false },
+  shopping: { id: 'page-shopping', render: renderShopping, rendered: false },
+  history: { id: 'page-history', render: renderHistory, rendered: false },
 };
 
-function showTab(name) {
+function showTab(name, { updateHash = true } = {}) {
+  if (!PAGES[name]) name = 'pantry';
   for (const tabBtn of document.querySelectorAll('.tab')) {
     const active = tabBtn.dataset.tab === name;
     tabBtn.setAttribute('aria-selected', active ? 'true' : 'false');
@@ -20,11 +33,14 @@ function showTab(name) {
   }
   const page = PAGES[name];
   const section = document.getElementById(page.id);
-  // Recipes page re-renders every visit (pantry may have changed).
-  // Pantry subscribes to changes so first render suffices.
+  // Recipes re-renders every visit (pantry may have changed); other pages
+  // subscribe to their state so first render suffices.
   if (name === 'recipes' || !page.rendered) {
     page.render(section);
     page.rendered = true;
+  }
+  if (updateHash && location.hash !== `#${name}`) {
+    window.history.replaceState(null, '', `#${name}`);
   }
 }
 
@@ -41,20 +57,47 @@ function renderConfigBanner() {
     ' <a href="SETUP.md" target="_blank">How to set it up →</a>';
 }
 
+function renderShoppingBadge(items) {
+  const badge = document.getElementById('shopping-badge');
+  if (!badge) return;
+  const count = items.filter((i) => !i.checked).length;
+  badge.textContent = String(count);
+  badge.classList.toggle('hidden', count === 0);
+}
+
 async function init() {
   for (const tabBtn of document.querySelectorAll('.tab')) {
     tabBtn.addEventListener('click', () => showTab(tabBtn.dataset.tab));
   }
+  window.addEventListener('hashchange', () => {
+    showTab(location.hash.replace('#', ''), { updateHash: false });
+  });
 
-  // Probe backend + load pantry concurrently — they're independent.
-  await Promise.all([checkBackend(), pantry.load()]);
+  const actions = document.getElementById('header-actions');
+  if (actions) {
+    mountThemeToggle(actions);
+    mountSyncButton(actions);
+  }
+
+  await storage.init();
+  // Backend probe runs concurrently with state loads — they're independent.
+  await Promise.all([
+    checkBackend(),
+    pantry.load(),
+    shopping.load(),
+    favorites.load(),
+    history.load(),
+    taste.load(),
+    settings.load(),
+  ]);
+
+  shopping.subscribe(renderShoppingBadge);
   renderConfigBanner();
-  showTab('pantry');
+  showTab(location.hash.replace('#', '') || 'pantry', { updateHash: false });
 
   // If backend status changes later (e.g. user fixes env var + reload), re-render.
   subscribeBackend(() => {
     renderConfigBanner();
-    // Force re-render of currently visible page so it picks up new state.
     PAGES.recipes.rendered = false;
   });
 }

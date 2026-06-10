@@ -1,7 +1,12 @@
-// GET /api/recipes?mealType=breakfast&mode=flexible&ingredients=eggs,milk,flour
+// GET /api/recipes?mealType=&mode=&ingredients=&cuisine=&diet=&intolerances=
 //
 // Server-side proxy for Spoonacular. Keeps SPOONACULAR_API_KEY out of the
 // browser. Normalizes the response so the client just renders.
+//
+// Always uses complexSearch (even for mealType=any) so every result carries
+// cuisines + diet flags. One Spoonacular request per query; responses are
+// CDN-cached for 5 minutes, and the client adds its own sessionStorage cache —
+// both protect the free-tier ~150 points/day quota.
 
 const MEAL_TYPE_MAP = {
   breakfast: 'breakfast',
@@ -9,6 +14,23 @@ const MEAL_TYPE_MAP = {
   dinner: 'main course',
   any: null,
 };
+
+const DIETS = new Set([
+  'vegetarian', 'vegan', 'gluten free', 'ketogenic', 'pescetarian', 'paleo',
+]);
+
+const INTOLERANCES = new Set([
+  'dairy', 'egg', 'gluten', 'grain', 'peanut', 'seafood', 'sesame',
+  'shellfish', 'soy', 'sulfite', 'tree nut', 'wheat',
+]);
+
+const CUISINES = new Set([
+  'african', 'american', 'asian', 'british', 'cajun', 'caribbean', 'chinese',
+  'eastern european', 'european', 'french', 'german', 'greek', 'indian',
+  'irish', 'italian', 'japanese', 'jewish', 'korean', 'latin american',
+  'mediterranean', 'mexican', 'middle eastern', 'nordic', 'southern',
+  'spanish', 'thai', 'vietnamese',
+]);
 
 export default async function handler(req, res) {
   const apiKey = process.env.SPOONACULAR_API_KEY;
@@ -18,8 +40,14 @@ export default async function handler(req, res) {
 
   const mealType = String(req.query.mealType || 'any');
   const mode = String(req.query.mode || 'flexible');
-  const ingredientsParam = String(req.query.ingredients || '');
-  const ingredients = ingredientsParam
+  const cuisine = String(req.query.cuisine || '').toLowerCase().trim();
+  const diet = String(req.query.diet || '').toLowerCase().trim();
+  const intolerances = String(req.query.intolerances || '')
+    .toLowerCase()
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean);
+  const ingredients = String(req.query.ingredients || '')
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
@@ -30,13 +58,27 @@ export default async function handler(req, res) {
   if (mode !== 'strict' && mode !== 'flexible') {
     return res.status(400).json({ error: `Invalid mode: ${mode}` });
   }
-
-  const apiType = MEAL_TYPE_MAP[mealType];
+  if (cuisine && !CUISINES.has(cuisine)) {
+    return res.status(400).json({ error: `Invalid cuisine: ${cuisine}` });
+  }
+  if (diet && !DIETS.has(diet)) {
+    return res.status(400).json({ error: `Invalid diet: ${diet}` });
+  }
+  for (const intolerance of intolerances) {
+    if (!INTOLERANCES.has(intolerance)) {
+      return res.status(400).json({ error: `Invalid intolerance: ${intolerance}` });
+    }
+  }
 
   try {
-    const raw = apiType
-      ? await complexSearch({ apiKey, type: apiType, ingredients })
-      : await findByIngredients({ apiKey, ingredients });
+    const raw = await complexSearch({
+      apiKey,
+      type: MEAL_TYPE_MAP[mealType],
+      ingredients,
+      cuisine,
+      diet,
+      intolerances,
+    });
 
     const normalized = raw.map(normalize);
 
@@ -53,11 +95,14 @@ export default async function handler(req, res) {
   }
 }
 
-async function complexSearch({ apiKey, type, ingredients }) {
+async function complexSearch({ apiKey, type, ingredients, cuisine, diet, intolerances }) {
   const url = new URL('https://api.spoonacular.com/recipes/complexSearch');
   url.searchParams.set('apiKey', apiKey);
-  url.searchParams.set('type', type);
+  if (type) url.searchParams.set('type', type);
   if (ingredients.length) url.searchParams.set('includeIngredients', ingredients.join(','));
+  if (cuisine) url.searchParams.set('cuisine', cuisine);
+  if (diet) url.searchParams.set('diet', diet);
+  if (intolerances.length) url.searchParams.set('intolerances', intolerances.join(','));
   url.searchParams.set('fillIngredients', 'true');
   url.searchParams.set('addRecipeInformation', 'true');
   url.searchParams.set('instructionsRequired', 'true');
@@ -71,22 +116,6 @@ async function complexSearch({ apiKey, type, ingredients }) {
   }
   const data = await r.json();
   return data.results || [];
-}
-
-async function findByIngredients({ apiKey, ingredients }) {
-  const url = new URL('https://api.spoonacular.com/recipes/findByIngredients');
-  url.searchParams.set('apiKey', apiKey);
-  url.searchParams.set('ingredients', ingredients.length ? ingredients.join(',') : 'salt');
-  url.searchParams.set('number', '24');
-  url.searchParams.set('ranking', '2');
-  url.searchParams.set('ignorePantry', 'true');
-
-  const r = await fetch(url);
-  if (!r.ok) {
-    const body = await r.text().catch(() => '');
-    throw new Error(`Spoonacular findByIngredients ${r.status}: ${body.slice(0, 200)}`);
-  }
-  return r.json();
 }
 
 function normalize(r) {
@@ -110,6 +139,12 @@ function normalize(r) {
     servings: r.servings || null,
     summary: r.summary || null,
     dishTypes: r.dishTypes || [],
+    cuisines: r.cuisines || [],
+    diets: r.diets || [],
+    vegetarian: Boolean(r.vegetarian),
+    vegan: Boolean(r.vegan),
+    glutenFree: Boolean(r.glutenFree),
+    dairyFree: Boolean(r.dairyFree),
     usedIngredientCount: usedCount,
     missedIngredientCount: missedCount,
   };

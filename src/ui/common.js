@@ -35,29 +35,46 @@ export function escapeHtml(str) {
     .replace(/"/g, '&quot;');
 }
 
-// Toast
-export function toast(message, ms = 2400) {
+// Toast. Options: toast('msg'), toast('msg', 4000), or
+// toast('msg', { ms, action: { label, onClick } }) for an inline action button.
+export function toast(message, opts = {}) {
   const root = document.getElementById('toast-root');
   if (!root) return;
-  const node = el('div', { class: 'toast' }, [message]);
+  const { ms = 2400, action = null } = typeof opts === 'number' ? { ms: opts } : opts;
+  const children = [el('span', {}, [message])];
+  const node = el('div', { class: 'toast' }, children);
+  if (action) {
+    node.appendChild(
+      el('button', {
+        onclick: () => {
+          node.remove();
+          action.onClick();
+        },
+      }, [action.label])
+    );
+  }
   root.appendChild(node);
   setTimeout(() => {
     node.style.opacity = '0';
     node.style.transition = 'opacity 200ms';
     setTimeout(() => node.remove(), 220);
-  }, ms);
+  }, action ? Math.max(ms, 5000) : ms);
 }
 
 // Modal — only one at a time.
 let modalCleanup = null;
 
-export function openModal(render) {
+export function openModal(render, { narrow = false } = {}) {
   closeModal();
   const root = document.getElementById('modal-root');
   if (!root) return;
 
   const backdrop = el('div', { class: 'modal-backdrop' });
-  const modal = el('div', { class: 'modal', role: 'dialog', 'aria-modal': 'true' });
+  const modal = el('div', {
+    class: 'modal' + (narrow ? ' narrow' : ''),
+    role: 'dialog',
+    'aria-modal': 'true',
+  });
 
   backdrop.appendChild(modal);
   root.appendChild(backdrop);
@@ -84,10 +101,15 @@ export function closeModal() {
   if (modalCleanup) modalCleanup();
 }
 
-export function modalHeader(title, onClose) {
+// Optional extraButtons render between the title and the close button —
+// used by the recipe detail modal for its star/vote actions.
+export function modalHeader(title, onClose, extraButtons = []) {
   return el('div', { class: 'modal-header' }, [
     el('h2', {}, [title]),
-    el('button', { class: 'modal-close', 'aria-label': 'Close', onclick: onClose }, ['×']),
+    el('div', { class: 'header-btns' }, [
+      ...extraButtons,
+      el('button', { class: 'modal-close', 'aria-label': 'Close', onclick: onClose }, ['×']),
+    ]),
   ]);
 }
 

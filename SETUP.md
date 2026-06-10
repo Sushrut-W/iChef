@@ -87,15 +87,65 @@ If you'd rather push to GitHub and have Vercel deploy automatically:
 
 After this, every `git push` to `main` triggers a deploy. PR branches get preview URLs.
 
-## 7. (Optional) Cross-device pantry sync
+## 7. (Optional) Cross-device sync with Firebase
 
-The pantry currently lives in browser `localStorage` — single-device only. To sync across devices, you have a few options:
+Out of the box, everything (pantry, shopping list, favorites, history) lives in the browser's `localStorage` — fully functional, but single-device. To sync across devices, wire up the built-in Firestore support (~5 minutes, free tier):
 
-- **Vercel KV** (Redis-backed, simplest): <https://vercel.com/docs/storage/vercel-kv>. ~30k commands/month free. You'd move pantry operations into a new `/api/pantry` endpoint.
-- **Vercel Postgres** (Neon-backed): <https://vercel.com/docs/storage/vercel-postgres>. SQL, free tier is generous.
-- **Firebase Firestore**: see `src/storage/firestore.js` — there's a stub there with a template for the client-direct approach (older plan, predates the Vercel backend).
+### 7a. Create the Firebase project
 
-This isn't wired up yet — let me know when you want to add it and we'll pick one.
+1. Go to <https://console.firebase.google.com> → **Add project**.
+2. Name it anything (e.g. `ichef`). **Disable Google Analytics** when asked (not needed). Create.
+
+### 7b. Register a web app and grab the config
+
+1. On the project overview page, click the **`</>` (Web)** icon → nickname it `iChef` → **don't** check Firebase Hosting → Register.
+2. You'll see a `firebaseConfig = { apiKey: …, projectId: …, … }` code block. Copy just the object.
+3. Open `src/config.js` and replace `export const FIREBASE_CONFIG = null;` with your object:
+
+   ```js
+   export const FIREBASE_CONFIG = {
+     apiKey: 'AIza…',
+     authDomain: 'ichef-xxxxx.firebaseapp.com',
+     projectId: 'ichef-xxxxx',
+     storageBucket: 'ichef-xxxxx.firebasestorage.app',
+     messagingSenderId: '…',
+     appId: '…',
+   };
+   ```
+
+   This config is **safe to commit** — it identifies your project but isn't a secret.
+
+### 7c. Create the Firestore database
+
+1. In the Firebase console: **Build → Firestore Database → Create database**.
+2. Choose **production mode**, pick the region closest to you, Create.
+
+### 7d. Set the security rules
+
+In Firestore → **Rules** tab, replace the contents with:
+
+```
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /households/{household}/{document=**} {
+      allow read, write: if true;
+    }
+  }
+}
+```
+
+Click **Publish**.
+
+> ⚠️ **What this means:** data is only reachable if you know the household path, which is the SHA-256 hash of your household code — nobody can *list* households or guess yours from a short code. But the rules are technically open: anyone who learns your `projectId` could write junk data under their own made-up household and burn your free quota. That's an acceptable trade-off for a personal app with no sign-in. If you ever want to harden it, the standard upgrade is enabling **Anonymous Authentication** (Build → Authentication → Sign-in method → Anonymous) and changing `if true` to `if request.auth != null` — ask Claude to wire up the matching `signInAnonymously()` call.
+
+### 7e. Connect your devices
+
+1. Reload iChef and click the **cloud icon** in the header.
+2. Invent a household code — make it **long and unguessable**, like four random words (`purple-walrus-pancake-tuesday`). Anyone who knows the code can see and edit your data.
+3. The app will offer to upload this device's existing data. On your other devices, enter the **same code** and choose "Just use the household data" (or merge).
+
+From then on, changes sync live between devices (Firestore pushes updates within seconds). If a device shows an unexpectedly *empty* household when connecting, you probably typo'd the code — a different code is a different household.
 
 ## Troubleshooting
 
