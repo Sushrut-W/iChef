@@ -109,7 +109,9 @@ h1, h2, .brand-mark { font-family: var(--font-display); }
   top: 0;
   z-index: 10;
 }
-.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; }
+/* .brand and .header-actions get equal flex weight so .tabs centers on the
+   viewport, not merely in the leftover space between them. */
+.brand { display: flex; align-items: baseline; gap: 10px; min-width: 0; flex: 1 1 0; }
 .brand-mark {
   font-size: 24px;
   font-weight: 700;
@@ -154,7 +156,7 @@ h1, h2, .brand-mark { font-family: var(--font-display); }
   text-align: center;
 }
 
-.header-actions { display: flex; align-items: center; gap: 8px; }
+.header-actions { display: flex; align-items: center; gap: 8px; flex: 1 1 0; justify-content: flex-end; }
 
 .icon-btn {
   display: inline-flex;
@@ -406,6 +408,34 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:f
   margin-bottom: 16px;
 }
 
+/* Shopping suggestions (pantry items marked Out) */
+.suggest-box {
+  margin-bottom: 16px;
+}
+.suggest-box:empty { display: none; }
+.suggest-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  font-size: 13.5px;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+.suggest-box .chip { text-transform: capitalize; }
+
+/* "Use up" shortcut on pantry rows */
+.ingredient-row .use-up-btn {
+  opacity: 0;
+  transition: opacity 140ms;
+  white-space: nowrap;
+}
+.ingredient-row:hover .use-up-btn,
+.ingredient-row .use-up-btn:focus-visible { opacity: 1; }
+@media (hover: none) {
+  .ingredient-row .use-up-btn { opacity: 0.8; }
+}
+
 /* ---------- Empty state ---------- */
 
 .empty-state {
@@ -434,6 +464,7 @@ input[type="text"]:focus, input[type="password"]:focus, textarea:focus, select:f
 
 .segmented {
   display: inline-flex;
+  flex-wrap: wrap;
   background: var(--surface);
   border: 1px solid var(--border);
   border-radius: var(--radius);

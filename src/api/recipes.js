@@ -12,9 +12,10 @@ export async function findRecipes({
   cuisine = '',
   diet = '',
   intolerances = [],
+  mustUse = '',
 } = {}) {
   const ingredients = getHaveItems().map((i) => i.name);
-  return fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances });
+  return fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances, mustUse });
 }
 
 export async function getRecipeDetail(id) {

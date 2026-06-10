@@ -61,13 +61,14 @@ export async function fetchHealth() {
   return fetchJson('/api/health');
 }
 
-export async function fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances }) {
+export async function fetchRecipes({ mealType, mode, ingredients, cuisine, diet, intolerances, mustUse }) {
   const url = new URL('/api/recipes', window.location.origin);
   if (mealType) url.searchParams.set('mealType', mealType);
   if (mode) url.searchParams.set('mode', mode);
   if (ingredients && ingredients.length) {
     url.searchParams.set('ingredients', ingredients.join(','));
   }
+  if (mustUse) url.searchParams.set('mustUse', mustUse);
   if (cuisine) url.searchParams.set('cuisine', cuisine);
   if (diet) url.searchParams.set('diet', diet);
   if (intolerances && intolerances.length) {

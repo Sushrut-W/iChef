@@ -6,12 +6,13 @@ A personal cooking web app. Maintain a pantry of what you have, find recipes you
 
 - **Pantry tracking** — add ingredients you own, mark them Have/Out, group by category.
 - **Grocery run** — paste a whole list at once (newlines or commas), preview the parsed items with guessed categories, then add them all. Export your pantry back out as a plain list (clipboard or `.txt`).
-- **Recipe search** — breakfast / lunch / dinner recipes from [Spoonacular](https://spoonacular.com/food-api), ranked by how many pantry items they use.
+- **Recipe search** — breakfast / lunch / dinner / snacks / sides / desserts / baked goods from [Spoonacular](https://spoonacular.com/food-api), ranked by how many pantry items they use.
   - **Strict**: only recipes you can make right now. **Flexible**: all matches, fewest missing first.
   - Filter by **cuisine** and **diet** (vegetarian, vegan, gluten free, …), exclude **intolerances**, or group results by cuisine.
+  - **Use up** — pick one pantry ingredient that every result must use (finish what's left of it), from the recipes page or the "Use up ↗" shortcut on any pantry row.
 - **See more / less like this** — 👍 / 👎 any recipe; iChef learns your cuisine and dish-type tastes and re-ranks future results (👎 hides the recipe).
 - **Favorites** — ⭐ recipes into a Favorites tab that works offline (no API calls).
-- **Shopping list** — one tap adds a recipe's missing ingredients; check items off while shopping, then move them straight into the pantry.
+- **Shopping list** — one tap adds a recipe's missing ingredients; check items off while shopping, then move them straight into the pantry. Suggests pantry items you've marked Out so you remember to rebuy them.
 - **Cooked this** — open a recipe, tap "I cooked this!", mark which ingredients you used up; every cook is logged to a **History** tab with "Cook again".
 - **Light & dark themes** — warm-cozy light mode, modern-dark-kitchen dark mode; follows your OS or toggle manually.
 - **Cross-device sync (optional)** — share one household via a secret code, backed by Firebase Firestore with live updates. Works fully offline/local without it.

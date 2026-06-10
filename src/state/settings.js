@@ -10,6 +10,7 @@ const DEFAULTS = {
   groupByCuisine: false,
   diet: '',
   intolerances: [],
+  mustUse: '',
 };
 
 const listeners = new Set();

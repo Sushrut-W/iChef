@@ -1,6 +1,7 @@
 // Pantry page UI.
 
 import * as pantry from '../state/pantry.js';
+import * as settings from '../state/settings.js';
 import { isBackendConfigured } from '../state/backend.js';
 import { fetchAutocomplete, BackendError } from '../api/backend.js';
 import { el, clear, toast, debounce, openModal, modalHeader } from './common.js';
@@ -57,6 +58,17 @@ export function render(container) {
 function renderRow(item) {
   return el('div', { class: 'ingredient-row', dataset: { id: item.id } }, [
     el('span', { class: 'name' + (item.hasIt ? '' : ' out') }, [item.name]),
+    item.hasIt
+      ? el('button', {
+          class: 'btn ghost small use-up-btn',
+          title: `Find recipes that use ${item.name}`,
+          'aria-label': `Find recipes that use ${item.name}`,
+          onclick: async () => {
+            await settings.update({ mustUse: item.name });
+            location.hash = '#recipes';
+          },
+        }, ['Use up ↗'])
+      : null,
     el('div', { class: 'status-toggle' }, [
       el('button', {
         class: 'have' + (item.hasIt ? ' active' : ''),

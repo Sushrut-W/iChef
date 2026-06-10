@@ -18,19 +18,62 @@ export function render(container) {
 
   container.appendChild(renderAddForm());
 
+  const suggestBox = el('div', { class: 'suggest-box' });
   const actionBar = el('div', { class: 'action-bar' });
   const listContainer = el('div', { id: 'shopping-list' });
+  container.appendChild(suggestBox);
   container.appendChild(actionBar);
   container.appendChild(listContainer);
 
-  function renderAll(items) {
+  function renderAll() {
+    const items = shopping.getAll();
+    renderSuggestions(suggestBox, items);
     renderActions(actionBar, items);
     renderList(listContainer, items);
   }
 
-  renderAll(shopping.getAll());
-  const unsub = shopping.subscribe(renderAll);
-  container._cleanup = unsub;
+  renderAll();
+  // Suggestions come from pantry "Out" items, so re-render on either change.
+  const unsubShopping = shopping.subscribe(renderAll);
+  const unsubPantry = pantry.subscribe(renderAll);
+  container._cleanup = () => { unsubShopping(); unsubPantry(); };
+}
+
+// Pantry items marked Out that aren't on the list yet — you ran out of these,
+// so they're the obvious things to buy.
+function renderSuggestions(box, items) {
+  clear(box);
+  const listNames = new Set(items.map((i) => i.name.toLowerCase()));
+  const outItems = pantry
+    .getAll()
+    .filter((i) => !i.hasIt && !listNames.has(i.name.toLowerCase()))
+    .sort((a, b) => a.name.localeCompare(b.name));
+
+  if (!outItems.length) return;
+
+  const chips = outItems.map((item) =>
+    el('button', {
+      class: 'chip',
+      title: `Add ${item.name} to the shopping list`,
+      onclick: () => shopping.add(item.name, item.category),
+    }, [`+ ${item.name}`])
+  );
+
+  box.append(
+    el('div', { class: 'suggest-header' }, [
+      el('span', {}, [`You're out of these — add to your list?`]),
+      outItems.length > 1
+        ? el('button', {
+            class: 'btn ghost small',
+            onclick: async () => {
+              for (const item of outItems) await shopping.add(item.name, item.category);
+              toast(`Added ${outItems.length} items`);
+            },
+          }, [`Add all (${outItems.length})`])
+        : null,
+    ]),
+    el('div', { class: 'chip-row' }, chips)
+  );
 }
 
 function renderAddForm() {

@@ -12,6 +12,10 @@ const MEAL_TYPE_MAP = {
   breakfast: 'breakfast',
   lunch: 'main course',
   dinner: 'main course',
+  snack: 'snack',
+  side: 'side dish',
+  dessert: 'dessert',
+  baked: 'bread', // closest Spoonacular type for "baked goods"
   any: null,
 };
 
@@ -51,6 +55,9 @@ export default async function handler(req, res) {
     .split(',')
     .map((s) => s.trim())
     .filter(Boolean);
+  // Free-text pantry ingredient that results MUST use ("finish what's left").
+  // Only ever compared against ingredient names, never forwarded raw.
+  const mustUse = String(req.query.mustUse || '').toLowerCase().trim().slice(0, 60);
 
   if (!Object.prototype.hasOwnProperty.call(MEAL_TYPE_MAP, mealType)) {
     return res.status(400).json({ error: `Invalid mealType: ${mealType}` });
@@ -80,7 +87,16 @@ export default async function handler(req, res) {
       intolerances,
     });
 
-    const normalized = raw.map(normalize);
+    const matching = mustUse
+      ? raw.filter((r) =>
+          (r.usedIngredients || []).some((ing) => {
+            const name = String(ing.name || ing.originalName || '').toLowerCase();
+            return name.includes(mustUse) || mustUse.includes(name);
+          })
+        )
+      : raw;
+
+    const normalized = matching.map(normalize);
 
     const result =
       mode === 'strict'

@@ -21,6 +21,18 @@ const CUISINE_OPTIONS = [
 const DIET_OPTIONS = ['vegetarian', 'vegan', 'gluten free', 'ketogenic', 'pescetarian', 'paleo'];
 const INTOLERANCE_OPTIONS = ['dairy', 'gluten', 'egg', 'peanut', 'shellfish', 'soy', 'tree nut'];
 
+const MEAL_TYPES = [
+  ['breakfast', 'Breakfast'],
+  ['lunch', 'Lunch'],
+  ['dinner', 'Dinner'],
+  ['snack', 'Snacks'],
+  ['side', 'Sides'],
+  ['dessert', 'Desserts'],
+  ['baked', 'Baked goods'],
+  ['any', 'Any'],
+];
+const MEAL_LABELS = new Map(MEAL_TYPES);
+
 let subTab = 'discover';
 let lastResults = []; // raw server results, re-ranked locally on vote changes
 
@@ -84,10 +96,10 @@ function renderControls(pageContainer) {
   };
 
   const mealSeg = segmented(
-    ['breakfast', 'lunch', 'dinner', 'any'],
+    MEAL_TYPES.map(([key]) => key),
     s.mealType,
     (v) => onChange({ mealType: v }),
-    (v) => v[0].toUpperCase() + v.slice(1)
+    (v) => MEAL_LABELS.get(v) || v
   );
 
   const modeSeg = segmented(
@@ -97,6 +109,23 @@ function renderControls(pageContainer) {
     (v) => (v === 'flexible' ? 'Flexible' : 'Strict')
   );
   modeSeg.classList.add('subtle');
+
+  // "Use up" — require one pantry ingredient in every result (finish what's
+  // left of it). Auto-clears if the item is no longer marked Have.
+  const haveItems = pantry.getHaveItems().slice().sort((a, b) => a.name.localeCompare(b.name));
+  let mustUse = s.mustUse || '';
+  if (mustUse && !haveItems.some((i) => i.name === mustUse)) {
+    mustUse = '';
+    settings.update({ mustUse: '' });
+  }
+  const useUpSelect = el('select', { 'aria-label': 'Must-use ingredient', title: 'Only show recipes that use this ingredient' });
+  useUpSelect.appendChild(el('option', { value: '' }, ['Use up… (any)']));
+  for (const item of haveItems) {
+    const opt = el('option', { value: item.name }, [`Use up: ${item.name}`]);
+    if (item.name === mustUse) opt.selected = true;
+    useUpSelect.appendChild(opt);
+  }
+  useUpSelect.addEventListener('change', () => onChange({ mustUse: useUpSelect.value }));
 
   const cuisineSelect = el('select', { 'aria-label': 'Cuisine' });
   cuisineSelect.appendChild(el('option', { value: '' }, ['Any cuisine']));
@@ -150,6 +179,7 @@ function renderControls(pageContainer) {
     el('div', { class: 'recipe-controls' }, [
       mealSeg,
       el('div', { class: 'control-group' }, [el('span', { class: 'control-label' }, ['Mode']), modeSeg]),
+      useUpSelect,
       cuisineSelect,
       dietSelect,
       groupChip,
@@ -207,6 +237,7 @@ async function loadAndRender(container) {
       cuisine: s.cuisine,
       diet: s.diet,
       intolerances: s.intolerances,
+      mustUse: s.mustUse,
     });
     renderResults(container);
   } catch (err) {
@@ -233,9 +264,11 @@ function renderResults(container) {
       el('div', { class: 'empty-state' }, [
         el('h3', {}, [isStrict ? 'No exact matches' : 'No recipes found']),
         el('p', {}, [
-          isStrict
-            ? 'No recipes use only what you have. Switch to Flexible mode, loosen filters, or add more ingredients.'
-            : 'Try a different meal type, loosen the filters, or add more ingredients.',
+          s.mustUse
+            ? `Nothing here uses "${s.mustUse}" with the current filters. Try a different meal type or clear the Use up filter.`
+            : isStrict
+              ? 'No recipes use only what you have. Switch to Flexible mode, loosen filters, or add more ingredients.'
+              : 'Try a different meal type, loosen the filters, or add more ingredients.',
         ]),
       ])
     );
